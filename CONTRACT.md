@@ -13,8 +13,14 @@ Keep it short and specific. Point at methods, call sites, and error text.
 
 **Will the consumer, untouched, still compile and pass?** Yes or no.
 
+Yes.
+
 **Why.** What does the compiler do with the consumer's existing call sites once
 the new overload exists?
+
+The build succeeds since the old methods remain.
+
+
 
 ### What happened
 
