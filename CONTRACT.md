@@ -83,6 +83,30 @@ After rewriting the 5 api tests, they should pass.
 **What the build printed.** Paste it for each module, including file and
 line for anything that failed.
 
+From `mvn -B clean test` (absolute paths shortened to repo-relative):
+
+```
+[INFO] Building lab06-api 1.0.0                                           [2/3]
+[INFO] Compiling 5 source files with javac [debug deprecation release 21] to target/classes
+[INFO] Compiling 1 source file with javac [debug deprecation release 21] to target/test-classes
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Building lab06-consumer 1.0.0                                      [3/3]
+[INFO] Compiling 1 source file with javac [debug deprecation release 21] to target/classes
+[ERROR] COMPILATION ERROR :
+[ERROR] consumer/src/main/java/edu/cmu/cs214/frontdesk/FrontDesk.java:[27,19] method createBooking in interface edu.cmu.cs214.booking.BookingApi cannot be applied to given types;
+[ERROR]   required: edu.cmu.cs214.booking.BookingRequest
+[ERROR]   found:    java.lang.String,long,long,<nulltype>
+[ERROR]   reason: actual and formal argument lists differ in length
+[ERROR] consumer/src/main/java/edu/cmu/cs214/frontdesk/FrontDesk.java:[33,19] method createBooking in interface edu.cmu.cs214.booking.BookingApi cannot be applied to given types;
+[ERROR]   required: edu.cmu.cs214.booking.BookingRequest
+[ERROR]   found:    java.lang.String,long,long,java.lang.String
+[ERROR]   reason: actual and formal argument lists differ in length
+[INFO] lab06-booking-parent ............................... SUCCESS
+[INFO] lab06-api .......................................... SUCCESS
+[INFO] lab06-consumer ..................................... FAILURE
+[INFO] BUILD FAILURE
+```
+
 **Which module's tests ran, and which did not.** And what that tells you about
 who can detect a contract break.
 
