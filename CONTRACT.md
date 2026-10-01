@@ -20,7 +20,13 @@ the new overload exists?
 
 The build succeeds since the old methods remain.
 
-
+*Refined after the build:* The old four-argument `createBooking` is still in
+`BookingApi`, with the same signature and the same contract. The compiler only
+considers overloads whose parameter count matches the call. Both consumer calls
+(`FrontDesk.java:27` and `:33`) pass four arguments, so the new five-parameter
+overload is never a candidate, and they bind to the same method as before. That
+method now delegates with `notes = null`, which keeps every promise in its
+javadoc, so the consumer's tests see no difference either.
 
 ### What happened
 
@@ -47,19 +53,22 @@ needed to make the consumer recompile against the new API):
 
 **If your prediction was wrong,** say what you missed.
 
-It matched.
+It matched. I predicted yes, and the consumer recompiled against the new API
+and passed all 7 tests.
 
 **Is an additive change always safe in Java?** One case where adding something
 to an API still breaks a caller, if you can name one.
 
 Not always. A new overload can make an existing call ambiguous. Suppose the
-new overload had been `createBooking(String roomId, long startMinute,
-long endMinute, Notes notes)`, with a `Notes` type in the last slot instead of
-a fifth parameter. If we have
-`api.createBooking(roomId, startMinute, endMinute, null)`, null fits both
-String and Notes, and neither is a better match, so the compiler refuses:
-"reference to createBooking is ambiguous." The consumer would stop compiling
-even though nothing was removed.
+notes overload had been `createBooking(String roomId, long startMinute,
+long endMinute, Notes notes)`: four parameters like the old method, but with a
+`Notes` type in the last position. The consumer's call at `FrontDesk.java:27`,
+`api.createBooking(roomId, startMinute, endMinute, null)`, would then match both
+methods. `null` converts to both `String` and `Notes`, and neither type is a
+subtype of the other, so neither method is more specific. The compiler would
+reject the call with "reference to createBooking is ambiguous", and the consumer
+would stop compiling even though nothing was removed. Our real overload was
+safe because its five parameters never compete with a four-argument call.
 
 ---
 
@@ -72,14 +81,27 @@ which module goes red and whether at compile time or test time.
 
 No. The consumer will not compile.
 
+*Refined after the build:* `api` stays green, and `consumer` goes red at
+compile time, so its tests never run.
+
 **Where.** Name the call sites you expect to be affected, if any.
 
 The parameters given in the consumer should be changed to `BookingRequest request`.
+
+*Refined after the build:* The two `createBooking` calls in `FrontDesk`, at line
+27 in `bookWalkIn` and line 33 in `joinWaitlist`. Both pass four positional
+arguments, and no four-argument `createBooking` exists anymore. The
+`listBookings` and `cancelBooking` calls (lines 39, 48, and 53) are unaffected
+because their signatures didn't change.
 
 **What about the tests in `api/`, after you update them?** And whether their
 result is evidence about the consumer.
 
 After rewriting the 5 api tests, they should pass.
+
+*Refined after the build:* They pass, but that isn't evidence about the
+consumer. We rewrote them to the new call along with the change, and they never
+compile or run consumer code.
 
 ### Step 1: after the fold
 
@@ -117,13 +139,13 @@ Only the api module's tests ran, and all 5 passed. The consumer failed in its
 compile step at `FrontDesk.java:27` and `:33`, so Maven never reached its test
 phase and none of its 7 tests ran.
 
-So the producer can't detect this break from its own side. The api tests were
-rewritten along with the change, so they check the new contract, and they never
-touch consumer code. Their passing says nothing about the consumer. The break
-showed up only in the consumer's build, and the compiler caught it before the
-consumer's tests could even run. Normally the consumer builds on their own
-schedule, so they would find the break after we shipped, unless their build runs
-inside ours, as it does in this repo.
+So only the consumer's side can detect this break. Our own tests can't: we
+rewrote them to match the change, so they check the new contract, and they never
+touch consumer code. The break showed up only when the consumer's code was
+compiled against the new API. That happened here only because the consumer's
+build runs inside ours. Normally the front desk team builds on their own
+schedule, so they would discover the break after we shipped, and we would hear
+about it from them, not from our build.
 
 ### Step 2: the deprecation path
 
@@ -163,12 +185,15 @@ build ends with three SUCCESS rows and `BUILD SUCCESS`.
 during step 1, and who is on which schedule.
 
 The front desk team can build again with no changes. `FrontDesk.java` compiles
-against the deprecated overloads, and all 7 consumer tests pass. Nobody has to
-move at the same moment. We, the producer, switched to
-`createBooking(BookingRequest)` now, and new callers use it. The front desk team
-can switch to `BookingRequest` on their own schedule, any time before a later
-version removes the deprecated overloads. The warnings remind them until they
-do.
+against the deprecated overloads, and all 7 consumer tests pass. The two
+schedules are now separate:
+
+- **Us (producer):** we ship `createBooking(BookingRequest)` now, and our tests
+  and any new callers already use it. We have to keep the deprecated overloads
+  working until we announce a version that removes them.
+- **Front desk (consumer):** they migrate their two calls to `BookingRequest`
+  whenever they choose, as long as it's before that removal. The old calls
+  behave identically in the meantime, because they delegate to the new method.
 
 One thing it doesn't fix: a class outside `api/` that implements `BookingApi`
 still breaks, because `createBooking(BookingRequest)` is a new abstract method it
@@ -177,15 +202,23 @@ doesn't implement. The deprecation path protects callers, not implementers.
 **What the warnings accomplish that a README note would not.** Be concrete
 about where the warning shows up and who sees it without looking for it.
 
-The warning appears in the consumer's own build output, including CI, every
-time `FrontDesk.java` compiles. It gives the exact file, line, and column of
-each old call (`FrontDesk.java:[27,19]` and `[33,19]`) and the deprecated
-signature, and IDEs strike through the call. The front desk developers see it
-during their normal build without reading anything we wrote. A README note
-reaches only someone who goes looking in our repo, and this team doesn't even
-answer our messages. The `@deprecated` javadoc on the old method names the
-replacement, so the warning leads straight to the fix. And it doesn't block
-them, since the build still succeeds.
+A README note reaches only someone who goes looking in our repo, and this team
+doesn't even answer our messages. A warning reaches them in their own tools,
+with no effort on their part:
+
+- **Where it shows up:** in the consumer's build output, including CI, every
+  time `FrontDesk.java` is compiled, and as a strikethrough on the call in their
+  IDE.
+- **What it says:** the exact file, line, and column of each old call
+  (`FrontDesk.java:[27,19]` and `[33,19]`) and the deprecated signature. With
+  `showDeprecation` on, as in the parent `pom.xml`, it's line-level. Without it,
+  javac still prints a note naming the file.
+- **Where it leads:** the `@deprecated` javadoc on the old method names
+  `createBooking(BookingRequest)`, so the warning points straight to the fix.
+
+It also doesn't block them, since the build still succeeds. A README note can be
+missed and goes stale. The warning stays attached to every old call until that
+call is changed.
 
 ---
 
@@ -220,12 +253,20 @@ off the waitlist", "send a notification", or "force the cancel".
 **What goes wrong when it happens.** Silent bad behavior, wrong data, a crash
 somewhere far away?
 
-Silent bad behavior, with no exception. If `cancelQuietly` passed `true` by
-mistake, fixing a typo at the desk would give the room to the first eligible
-waitlisted guest, who becomes CONFIRMED, and that's hard to undo. If
-`cancelAndOfferToWaitlist` passed `false`, the room would be freed but the
-waitlisted guest would stay WAITLISTED while the room sat empty. Either way, the
-only symptom is a wrong schedule later on.
+Silent bad behavior, with no exception:
+
+- **`cancelQuietly` passing `true`:** the desk cancels a mistyped booking
+  intending to re-enter it correctly. In between, the first eligible
+  waitlisted guest is promoted to CONFIRMED and takes the room, so the
+  corrected booking is turned away. The API has no "demote", so the only way
+  back is to cancel that guest's booking outright.
+- **`cancelAndOfferToWaitlist` passing `false`:** the room would be freed, but
+  the waitlisted guest would stay WAITLISTED while the room sat empty.
+
+The compiler accepts both mistakes, and nothing fails at the call. The only
+symptom is a wrong status on the schedule later. A test that checks the status
+after a cancel catches it, like `FrontDeskTest.quietCancelLeavesTheWaitlistWhereItWas`,
+but a new call site without such a test would ship the bug.
 
 ### The redesign
 
@@ -255,13 +296,25 @@ return api.cancelBooking(bookingId, CancelMode.QUIET);                 // cancel
 **Why the mistake is now hard or impossible to make.** Point at the mechanism,
 such as the compiler, a validating constructor, or an exhaustive switch.
 
-The compiler does the enforcing. `cancelBooking` no longer accepts a boolean, so
-the caller has to write a named constant, and that name says at the call site
-what will happen. A reviewer can spot `QUIET` in `cancelAndOfferToWaitlist` at a
-glance. The implementation handles the modes with a `switch` expression with no
-`default`, so a mode added later (say, notify without promoting) won't compile
-until it's handled. The one remaining hole is `null`, which the implementation
-rejects with `IllegalArgumentException`.
+The compiler does the enforcing. No design can stop a caller from deliberately
+choosing the wrong mode. What the enum removes is the accidental, unreadable
+version of the mistake:
+
+- **No bare flag:** `cancelBooking` no longer takes a boolean, so the caller must
+  write a named constant, and the call site says what will happen. `QUIET`
+  inside `cancelAndOfferToWaitlist` is obviously wrong in review, where
+  `false` was not.
+- **Can't misread it:** a reader no longer needs the javadoc to know what the
+  argument means.
+- **New modes get handled:** the implementation switches over the modes with a
+  `switch` expression with no `default`. A mode added later (say, notify
+  without promoting) won't compile until every such switch handles it.
+
+Two limits. During migration, the deprecated `cancelBooking(long, boolean)`
+(see the tradeoff below) still accepts `true` and `false`, so enforcement is
+complete only once it's removed, and until then each old call gets a
+deprecation warning. Also, `null` still compiles; the implementation rejects it
+at runtime with `IllegalArgumentException`.
 
 ### One tradeoff
 
@@ -269,19 +322,28 @@ rejects with `IllegalArgumentException`.
 against the deprecation path you just built, or more types for a newcomer to
 learn. "No real downside" does not count.
 
-It's another breaking change, to a method the front desk already calls in two
-places. Shipping it without breaking them means repeating Milestone 2's
-deprecation path: keep `cancelBooking(long, boolean)` as a `@Deprecated` method
-that maps `true` and `false` to the enum, live with the warnings, and keep both
-forms in the contract until the front desk migrates. It also adds one more type
-for every caller to import and learn. A caller that computes the choice, like
+The main cost is migration. Removing `cancelBooking(long, boolean)` is a
+breaking change to a method the front desk calls twice (`FrontDesk.java:48` and
+`:53`). To avoid breaking them, we would repeat Milestone 2's deprecation path:
+keep the boolean version as a `@Deprecated` method that maps `true` and `false`
+to the enum, and maintain both forms in the contract until the front desk
+migrates. While that lasts, the boolean mistake is still possible, as noted
+above.
+
+There's also smaller, permanent ceremony. Callers have one more type to import
+and learn, and a caller that computes the choice, like
 `cancelBooking(id, shouldPromote)`, now has to write
 `shouldPromote ? CancelMode.PROMOTE_FROM_WAITLIST : CancelMode.QUIET`.
 
 **When the price is worth paying.** A condition under which it is.
 
-It's worth it when callers we don't control use the method and a wrong choice
-has costly, hard-to-reverse effects, as here, where a wrong `true` gives a room
-away. It's also worth it when a third mode is likely, since an enum can grow and
-a boolean can't. It's not worth it for a private helper with one caller in our
-own code, where we can read every call site.
+It's worth paying when both of these hold:
+
+1. The method has callers we don't control and can't review, like the front
+   desk team.
+2. A wrong choice is costly and hard to reverse, like a wrong `true` that gives
+   a room away for good.
+
+It's even more worth it if a third mode is likely, since an enum can grow and a
+boolean can't. It isn't worth it for a private helper with one caller in our
+own code, where we can read every call site and the migration cost buys nothing.
