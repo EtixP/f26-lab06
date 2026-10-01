@@ -114,8 +114,35 @@ who can detect a contract break.
 
 **What you added.** The signatures that came back, and what they delegate to.
 
+Both positional overloads came back on `BookingApi` as `@Deprecated` default
+methods, each with a `@deprecated` javadoc tag pointing to
+`createBooking(BookingRequest)`:
+
+```java
+@Deprecated
+default Booking createBooking(String roomId, long startMinute, long endMinute,
+                              String waitlistKey)
+// delegates to createBooking(new BookingRequest(roomId, startMinute, endMinute)
+//         .withWaitlistKey(waitlistKey))
+
+@Deprecated
+default Booking createBooking(String roomId, long startMinute, long endMinute,
+                              String waitlistKey, String notes)
+// delegates to createBooking(new BookingRequest(roomId, startMinute, endMinute)
+//         .withWaitlistKey(waitlistKey).withNotes(notes))
+```
+
 **The warnings.** Paste one deprecation warning line from the build log (from
 a `mvn -B clean test` run, since a rerun with nothing to compile prints none).
+
+```
+[WARNING] consumer/src/main/java/edu/cmu/cs214/frontdesk/FrontDesk.java:[27,19] createBooking(java.lang.String,long,long,java.lang.String) in edu.cmu.cs214.booking.BookingApi has been deprecated
+```
+
+What changed in the build output compared with step 1: the consumer now
+compiles, with the warning above plus the same one at `FrontDesk.java:[33,19]`,
+its tests run (`Tests run: 7, Failures: 0, Errors: 0, Skipped: 0`), and the
+build ends with three SUCCESS rows and `BUILD SUCCESS`.
 
 **What the deprecation path resolves.** Who can now build that could not build
 during step 1, and who is on which schedule.

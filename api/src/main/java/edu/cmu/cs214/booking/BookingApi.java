@@ -64,6 +64,39 @@ public interface BookingApi {
     Booking createBooking(BookingRequest request);
 
     /**
+     * Books a room with a waitlist key and no notes. Same as
+     * {@code createBooking(new BookingRequest(roomId, startMinute, endMinute)
+     * .withWaitlistKey(waitlistKey))}, and keeps every promise of
+     * {@link #createBooking(BookingRequest)}.
+     *
+     * @deprecated Use {@link #createBooking(BookingRequest)}. This positional
+     *             overload remains only so existing callers keep building.
+     */
+    @Deprecated
+    default Booking createBooking(String roomId, long startMinute, long endMinute,
+                                  String waitlistKey) {
+        return createBooking(new BookingRequest(roomId, startMinute, endMinute)
+                .withWaitlistKey(waitlistKey));
+    }
+
+    /**
+     * Books a room with a waitlist key and notes. Same as
+     * {@code createBooking(new BookingRequest(roomId, startMinute, endMinute)
+     * .withWaitlistKey(waitlistKey).withNotes(notes))}, and keeps every promise
+     * of {@link #createBooking(BookingRequest)}.
+     *
+     * @deprecated Use {@link #createBooking(BookingRequest)}. This positional
+     *             overload remains only so existing callers keep building.
+     */
+    @Deprecated
+    default Booking createBooking(String roomId, long startMinute, long endMinute,
+                                  String waitlistKey, String notes) {
+        return createBooking(new BookingRequest(roomId, startMinute, endMinute)
+                .withWaitlistKey(waitlistKey)
+                .withNotes(notes));
+    }
+
+    /**
      * Returns every non-cancelled booking for one room, ordered by start minute.
      *
      * <p>Both CONFIRMED and WAITLISTED bookings are included; CANCELLED
