@@ -26,10 +26,37 @@ The build succeeds since the old methods remain.
 
 **The result.** What the build printed for each module.
 
+From `mvn -B clean test` (a plain `mvn -B test` reused the consumer's
+already-compiled classes and printed "Nothing to compile", so `clean` was
+needed to make the consumer recompile against the new API):
+
+```
+[INFO] Building lab06-api 1.0.0                                           [2/3]
+[INFO] Compiling 4 source files with javac [debug deprecation release 21] to target/classes
+[INFO] Compiling 1 source file with javac [debug deprecation release 21] to target/test-classes
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0
+[INFO] Building lab06-consumer 1.0.0                                      [3/3]
+[INFO] Compiling 1 source file with javac [debug deprecation release 21] to target/classes
+[INFO] Compiling 1 source file with javac [debug deprecation release 21] to target/test-classes
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0
+[INFO] lab06-booking-parent ............................... SUCCESS
+[INFO] lab06-api .......................................... SUCCESS
+[INFO] lab06-consumer ..................................... SUCCESS
+[INFO] BUILD SUCCESS
+```
+
 **If your prediction was wrong,** say what you missed.
+
+It matched.
 
 **Is an additive change always safe in Java?** One case where adding something
 to an API still breaks a caller, if you can name one.
+
+Not always. A new overload can make an existing call ambiguous. If we have
+`api.createBooking(roomId, startMinute, endMinute, null)`, null fits both
+String and Notes, and neither is a better match, so the compiler refuses:
+"reference to createBooking is ambiguous." The consumer would stop compiling
+even though nothing was removed.
 
 ---
 
@@ -40,10 +67,16 @@ to an API still breaks a caller, if you can name one.
 **Will the untouched consumer still compile and pass?** Yes or no, and if no,
 which module goes red and whether at compile time or test time.
 
+No. The consumer will not compile.
+
 **Where.** Name the call sites you expect to be affected, if any.
+
+The parameters given in the consumer should be changed to `BookingRequest request`.
 
 **What about the tests in `api/`, after you update them?** And whether their
 result is evidence about the consumer.
+
+After rewriting the 5 api tests, they should pass.
 
 ### Step 1: after the fold
 
